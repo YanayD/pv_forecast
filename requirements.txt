@@ -1,0 +1,4 @@
+numpy
+pysolar
+pandas
+tqdm
