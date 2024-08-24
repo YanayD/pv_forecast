@@ -2,3 +2,14 @@ numpy
 pysolar
 pandas
 tqdm
+tensorflow
+plotly
+optuna
+geopy
+holoviews
+pytz
+tensorflow
+bokeh
+joblib
+scikit-learn
+jupyter
