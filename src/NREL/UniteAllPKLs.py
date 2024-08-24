@@ -57,7 +57,7 @@ merged_df = merged_df.sort_values('Time').reset_index(drop=True)
 output_united_data_path = os.path.join(output_path, "united_data.csv")
 output_sensors_location_path = os.path.join(output_path, "sensors_location.csv")
 
-merged_df.to_csv(output_united_data_path)
-sensors_location.to_csv(output_sensors_location_path)
+merged_df.to_csv(output_united_data_path, index=False)
+sensors_location.to_csv(output_sensors_location_path, index=False)
 
 progress_bar.close()
