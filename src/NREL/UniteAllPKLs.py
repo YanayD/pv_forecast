@@ -1,63 +1,71 @@
-import pandas as pd
 import os
+import pandas as pd
 from tqdm import tqdm
 
 
-# Config
-input_path = r'/opt/project/data/NREL/processed'
-output_path = r'/opt/project/data/NREL/united_processed_data'
+def extract_year(file_name):
+    """Extracts the year from the file name."""
+    return file_name.split('_')[3].split('.')[0]
 
 
-sensors_location = pd.DataFrame(columns=['ID', 'Longitude', 'Latitude'])
-all_files_list = os.listdir(input_path)
-
-if not os.path.exists(output_path):
-    os.makedirs(output_path)
-
-
-# Waitbaar
-total_files = len(all_files_list)
-progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
+def load_and_process_file(file_path, id_col, lat_col, lon_col):
+    """Loads the file and processes its data, returning the relevant DataFrame and sensor location."""
+    df = pd.read_pickle(file_path)
+    df = df.rename(columns={'GHI': f"GHI_{id_col}", 'GHI_norm': f"GHI_norm_{id_col}"})
+    sensor_location = pd.DataFrame({'ID': [id_col], 'Latitude': [lat_col], 'Longitude': [lon_col]})
+    return df, sensor_location
 
 
-for cur_file in all_files_list:
-    ID, lat, lon, year = cur_file.split('_')
-    lat = float(lat)
-    lon = float(lon)
-
-    cur_sensors_location = pd.DataFrame({'ID': [ID], 'Latitude': [lat], 'Longitude': [lon]})
-    new_id = sensors_location.query(f"ID == '{ID}'").empty
-    if new_id:
-        sensors_location = pd.concat([sensors_location, cur_sensors_location], ignore_index=True)
-
-    column_mapping = {'GHI': f"GHI_{ID}",
-                      'GHI_norm': f"GHI_norm_{ID}"}
-
-    cur_file_path = os.path.join(input_path, cur_file)
-    cur_df = pd.read_pickle(cur_file_path)
+def merge_dataframes(df_main, df_to_merge, ID):
+    """Merges two DataFrames on the 'Time' column, combining them on common columns."""
+    if df_main is None:
+        return df_to_merge
+    return pd.merge(df_main, df_to_merge[['Time', f"GHI_{ID}", f"GHI_norm_{ID}"]], on="Time", how="outer").reset_index(drop=True)
 
 
-    if all_files_list.index(cur_file) == 0:
-        cur_df = cur_df.rename(columns=column_mapping)
-        merged_df = cur_df
-    else:
-        relevant_cur_df = cur_df[['Time', 'GHI', 'GHI_norm']]
-        relevant_cur_df = relevant_cur_df.rename(columns=column_mapping)
-        if set(relevant_cur_df.columns).issubset(set(merged_df.columns)):
-            if len(merged_df.columns) == len(cur_df.columns):
-                merged_df = pd.concat([merged_df, cur_df.rename(columns=column_mapping)])
-            else:
-                merged_df = merged_df.set_index('Time').combine_first(relevant_cur_df.set_index('Time')).reset_index()
-        else:
-            merged_df = pd.merge(merged_df, relevant_cur_df, on=["Time"], how="outer")
-    progress_bar.update(1)
+def process_files_for_year(year, file_list, input_path):
+    """Processes all files for a given year, merging data and collecting sensor locations."""
+    merged_df = None
+    sensors_location = pd.DataFrame(columns=['ID', 'Latitude', 'Longitude'])
 
-merged_df = merged_df.sort_values('Time').reset_index(drop=True)
+    for file_name in tqdm(file_list, desc=f"Processing year {year}"):
+        if extract_year(file_name) != year:
+            continue
 
-output_united_data_path = os.path.join(output_path, "united_data.csv")
-output_sensors_location_path = os.path.join(output_path, "sensors_location.csv")
+        file_path = os.path.join(input_path, file_name)
+        ID, lat, lon, _ = file_name.split('_')
+        lat, lon = float(lat), float(lon)
 
-merged_df.to_csv(output_united_data_path, index=False)
-sensors_location.to_csv(output_sensors_location_path, index=False)
+        cur_df, cur_sensor_location = load_and_process_file(file_path, ID, lat, lon)
 
-progress_bar.close()
+        if ID not in sensors_location['ID'].values:
+            sensors_location = pd.concat([sensors_location, cur_sensor_location], ignore_index=True)
+
+        merged_df = merge_dataframes(merged_df, cur_df, ID)
+
+    return merged_df, sensors_location
+
+
+def main():
+    input_path = r'/opt/project/data/NREL/processed'
+    output_path = r'/opt/project/data/NREL/united_processed_data'
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    all_files_list = os.listdir(input_path)
+    years = set(extract_year(file_name) for file_name in all_files_list)
+
+    for year in years:
+        merged_df, sensors_location = process_files_for_year(year, all_files_list, input_path)
+
+        if merged_df is not None:
+            output_united_data_path = os.path.join(output_path, f"united_data_{year}.csv")
+            output_sensors_location_path = os.path.join(output_path, f"sensors_location_{year}.csv")
+
+            merged_df.sort_values('Time').reset_index(drop=True).to_csv(output_united_data_path, index=False)
+            sensors_location.to_csv(output_sensors_location_path, index=False)
+
+
+if __name__ == "__main__":
+    main()
