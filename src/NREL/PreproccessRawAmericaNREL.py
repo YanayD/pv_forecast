@@ -16,12 +16,13 @@ if not os.path.exists(output_path):
 all_files_list = os.listdir(input_path)
 all_files_list = [file for file in all_files_list if file.startswith('Actual')]
 
+output_files_list = os.listdir(output_path)
+output_files_list = [file.replace('pkl', 'csv') for file in output_files_list]
 
-# Waitbaar
-total_files = len(all_files_list)
-progress_bar = tqdm(total=total_files, desc='Processing Files', unit='file')
 
-for cur_file in all_files_list:
+for cur_file in tqdm(all_files_list):
+    if cur_file in output_files_list:
+        continue
     lat, lon, year, pv_type, capacity = os.path.splitext(cur_file)[0].split('_')[1:6]
     ID = f"{lat}_{lon}_{pv_type}_{capacity}"
     lat = float(lat)
@@ -48,6 +49,4 @@ for cur_file in all_files_list:
 
     output_file_path = os.path.join(output_path, os.path.splitext(cur_file)[0] + '.pkl')
     cur_df_to_save.to_pickle(output_file_path)
-    progress_bar.update(1)
 
-progress_bar.close()

@@ -1,0 +1,9 @@
+version: '3'
+services:
+  jupyterlab:
+    image: jupyter/datascience-notebook:latest
+    ports:
+      - "8888:8888"
+    volumes:
+      - /c/Users/Yanay/Documents/GitHub/pv_forecast:/home/jovyan/work
+    user: "0"
